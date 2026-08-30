@@ -9,6 +9,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from game.game_manager import GameManager
+from game.ship import Orientation, Ship
 from pathlib import Path
 from ui.board_widget import BoardWidget
 from ui.bottom_status_panel import BottomStatusPanel
@@ -20,7 +22,10 @@ from ui.game_info_panel import GameInfoPanel
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-
+        self.game_manager = GameManager()
+        self.selected_ship_name: str | None = None
+        self.selected_ship_position: tuple[int, int] | None = None
+        self.selected_orientation = "horizontal"
         self.setWindowTitle("Battleships")
         self.resize(1500, 950)
         self.setMinimumSize(1200, 750)
@@ -38,6 +43,7 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(self._create_header())
         root_layout.addWidget(self._create_game_area(), 1)
         root_layout.addWidget(self._create_bottom_panel())
+        self._connect_signals()
 
     def _create_header(self) -> QWidget:
         header = QFrame()
@@ -176,7 +182,6 @@ class MainWindow(QMainWindow):
         layout.addWidget(
             self.player_board,
             1,
-            Qt.AlignmentFlag.AlignCenter,
         )
 
         layout.addWidget(hint)
@@ -205,7 +210,6 @@ class MainWindow(QMainWindow):
         layout.addWidget(
             self.enemy_board,
             1,
-            Qt.AlignmentFlag.AlignCenter,
         )
 
         layout.addWidget(empty_footer)
@@ -410,6 +414,11 @@ class MainWindow(QMainWindow):
                 background-color: rgba(16, 42, 59, 180);
             }}
 
+            #shipRow[selected="true"] {{
+                background-color: #1b4a68;
+                border: 2px solid #5aa7d9;
+            }}
+
             #shipName {{
                 color: #e6eef3;
                 font-size: 14px;
@@ -441,3 +450,188 @@ class MainWindow(QMainWindow):
                 border-radius: 3px;
             }}
         """)
+
+    def _connect_signals(self) -> None:
+        print("CONNECTING SIGNALS")
+
+        self.fleet_panel.ship_selected.connect(
+            self._select_ship
+        )
+        self.fleet_panel.orientation_selected.connect(
+            self._select_orientation
+        )
+
+        self.player_board.cell_clicked.connect(
+            self._select_board_position
+        )
+
+        self.control_panel.place_clicked.connect(
+            self._place_selected_ship
+        )
+
+        print("PLACE SIGNAL CONNECTED")
+
+    def _select_ship(self, ship_name: str) -> None:
+        self.selected_ship_name = ship_name
+        self.selected_ship_position = None
+
+    def _select_orientation(
+        self,
+        orientation: str,
+    ) -> None:
+        self.selected_orientation = orientation
+
+    def _select_board_position(
+        self,
+        row: int,
+        column: int,
+    ) -> None:
+        if self.selected_ship_name is None:
+            return
+
+        board = self.game_manager.player.board
+
+        existing_ship = board.get_ship_at(
+            row,
+            column,
+        )
+
+        if existing_ship is not None:
+            if existing_ship.name == self.selected_ship_name:
+                positions = existing_ship.positions.copy()
+
+                if board.remove_ship(existing_ship):
+                    for ship_row, ship_column in positions:
+                        self.player_board.set_cell_empty(
+                            ship_row,
+                            ship_column,
+                        )
+
+                    remaining_count = sum(
+                        1
+                        for ship in board.ships
+                        if ship.name == existing_ship.name
+                    )
+
+                    total_count = next(
+                        count
+                        for name, size, count, image_name
+                        in self.fleet_panel.SHIPS
+                        if name == existing_ship.name
+                    )
+
+                    self.fleet_panel.set_ship_remaining(
+                        existing_ship.name,
+                        total_count - remaining_count,
+                    )
+
+            return
+
+        ship_data = next(
+            (
+                (name, size)
+                for name, size, count, image_name
+                in self.fleet_panel.SHIPS
+                if name == self.selected_ship_name
+            ),
+            None,
+        )
+
+        if ship_data is None:
+            return
+
+        ship_name, ship_size = ship_data
+
+        orientation = (
+            Orientation.HORIZONTAL
+            if self.selected_orientation == "horizontal"
+            else Orientation.VERTICAL
+        )
+
+        ship = Ship(
+            name=ship_name,
+            size=ship_size,
+            orientation=orientation,
+        )
+
+        if not board.place_ship(
+            ship,
+            row,
+            column,
+        ):
+            return
+
+        for ship_row, ship_column in ship.positions:
+            self.player_board.set_cell_ship(
+                ship_row,
+                ship_column,
+            )
+            remaining_count = sum(
+                1
+                for existing_ship in board.ships
+                if existing_ship.name == ship_name
+            )
+
+            total_count = next(
+                count
+                for name, size, count, image_name
+                in self.fleet_panel.SHIPS
+                if name == ship_name
+            )
+
+            self.fleet_panel.set_ship_remaining(
+                ship_name,
+                total_count - remaining_count,
+            )
+
+
+    def _place_selected_ship(self) -> None:
+        print("PLACE BUTTON CLICKED")
+
+        if self.selected_ship_name is None:
+            return
+
+        if self.selected_ship_position is None:
+            return
+
+        ship_data = next(
+            (
+                (name, size)
+                for name, size, count, image_name
+                in self.fleet_panel.SHIPS
+                if name == self.selected_ship_name
+            ),
+            None,
+        )
+
+        if ship_data is None:
+            return
+
+        ship_name, ship_size = ship_data
+
+        ship = Ship(
+            name=ship_name,
+            size=ship_size,
+        )
+
+        row, column = self.selected_ship_position
+
+        placed = self.game_manager.player.board.place_ship(
+            ship,
+            row,
+            column,
+        )
+
+        print("Placed:", placed)
+
+        if not placed:
+            return
+
+        for ship_row, ship_column in ship.positions:
+            self.player_board.set_cell_ship(
+                ship_row,
+                ship_column,
+            )
+
+        self.selected_ship_name = None
+        self.selected_ship_position = None

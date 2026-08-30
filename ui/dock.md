@@ -61,3 +61,35 @@ battleships/
 12. Testing                      [ ]
 13. Final polish                 [ ]
 
+მთლიანად ვიზუალური UI დიზაინის დასასრულებლად ამ ფაილებზე უნდა ვიმუშაოთ:
+
+უკვე შექმნილი / ვიზუალურად დასასრულებელი
+ui/
+├── main_window.py
+├── board_widget.py
+├── fleet_panel.py
+├── control_panel.py
+├── game_info_panel.py
+└── bottom_status_panel.py
+მათი როლები
+main_window.py
+მთლიანი Layout: Header, პანელების პოზიციები, ზომები, ფერები.
+board_widget.py
+დაფების ვიზუალი: A–J, 1–10, უჯრების ზომები, საზღვრები, წყლის ეფექტი.
+fleet_panel.py
+მარცხენა მხარეს გემების ვიზუალი და რაოდენობები.
+control_panel.py
+PLACE SHIP, ERASE, ROTATE, READY ღილაკების ვიზუალი.
+game_info_panel.py
+მარჯვენა TURN და SHIPS REMAINING პანელი.
+bottom_status_panel.py
+ქვედა PLAYER 1 / CURRENT SHOT / PLAYER 2 პანელი.
+დამატებით ვიზუალისთვის
+assets/
+├── images/
+│   ├── ships/
+│   ├── background/
+│   └── icons/
+└── sounds/
+
+საბოლოოდ UI-ის დიზაინი რომ დავამთავროთ, ეს 6 ui ფაილი და assets/images/ საკმარისია. ამის შემდეგ შეგვიძლია მთლიანად გადავიდეთ თამაშის ლოგიკაზე.

@@ -37,10 +37,21 @@ class ControlPanel(QWidget):
         main_layout.addWidget(self.rotate_button)
         main_layout.addWidget(self.ready_button)
 
-        self.place_button.clicked.connect(self.place_clicked)
-        self.erase_button.clicked.connect(self.erase_clicked)
-        self.rotate_button.clicked.connect(self.rotate_clicked)
-        self.ready_button.clicked.connect(self.ready_clicked)
+        self.place_button.clicked.connect(
+            lambda: self.place_clicked.emit()
+        )
+
+        self.erase_button.clicked.connect(
+            lambda: self.erase_clicked.emit()
+        )
+
+        self.rotate_button.clicked.connect(
+            lambda: self.rotate_clicked.emit()
+        )
+
+        self.ready_button.clicked.connect(
+            lambda: self.ready_clicked.emit()
+        )
 
     def set_ready_enabled(self, enabled: bool) -> None:
         self.ready_button.setEnabled(enabled)

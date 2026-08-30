@@ -6,13 +6,42 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
 
+class ShipRow(QFrame):
+    clicked = Signal(str)
+
+    def __init__(self, ship_name: str) -> None:
+        super().__init__()
+
+        self.ship_name = ship_name
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit(self.ship_name)
+
+        super().mousePressEvent(event)
+
+    def set_selected(
+        self,
+        selected: bool,
+    ) -> None:
+        self.setProperty(
+            "selected",
+            selected,
+        )
+
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+
 class FleetPanel(QWidget):
     ship_selected = Signal(str)
+    orientation_selected = Signal(str)
 
     SHIPS = (
         ("Battleship", 4, 1, "ship_1.png"),
@@ -24,7 +53,11 @@ class FleetPanel(QWidget):
     def __init__(self) -> None:
         super().__init__()
 
-        self.ship_rows: dict[str, QWidget] = {}
+        self.selected_ship_name: str | None = None
+        self.selected_orientation = "horizontal"
+
+        self.ship_rows: dict[str, ShipRow] = {}
+
         self.ship_images_dir = (
             Path(__file__).resolve().parent.parent
             / "assets"
@@ -49,16 +82,63 @@ class FleetPanel(QWidget):
 
         layout.addStretch()
 
+        orientation_layout = QHBoxLayout()
+        orientation_layout.setSpacing(8)
+
+        self.horizontal_button = QPushButton("↔ HOR")
+        self.horizontal_button.setObjectName(
+            "orientationButton",
+        )
+        self.horizontal_button.setFixedHeight(38)
+        self.horizontal_button.setCursor(
+            Qt.CursorShape.PointingHandCursor,
+        )
+
+        self.vertical_button = QPushButton("↕ VER")
+        self.vertical_button.setObjectName(
+            "orientationButton",
+        )
+        self.vertical_button.setFixedHeight(38)
+        self.vertical_button.setCursor(
+            Qt.CursorShape.PointingHandCursor,
+        )
+
+        self.horizontal_button.clicked.connect(
+            lambda: self._select_orientation(
+                "horizontal",
+            )
+        )
+
+        self.vertical_button.clicked.connect(
+            lambda: self._select_orientation(
+                "vertical",
+            )
+        )
+
+        orientation_layout.addWidget(
+            self.horizontal_button,
+        )
+        orientation_layout.addWidget(
+            self.vertical_button,
+        )
+
+        layout.addLayout(orientation_layout)
+
+        self._update_orientation_buttons()
+
     def _create_ship_row(
         self,
         name: str,
         size: int,
         count: int,
         image_name: str,
-    ) -> QWidget:
-        frame = QFrame()
+    ) -> ShipRow:
+        frame = ShipRow(name)
         frame.setObjectName("shipRow")
         frame.setMinimumHeight(82)
+        frame.setCursor(
+            Qt.CursorShape.PointingHandCursor,
+        )
 
         layout = QHBoxLayout(frame)
         layout.setContentsMargins(12, 6, 12, 6)
@@ -70,17 +150,22 @@ class FleetPanel(QWidget):
 
         name_label = QLabel(name)
         name_label.setObjectName("shipName")
-        name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        name_label.setAlignment(
+            Qt.AlignmentFlag.AlignCenter,
+        )
 
-        ship_image = self._create_ship_image(image_name)
-        ship_image.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        ship_image = self._create_ship_image(
+            image_name,
+        )
 
         ship_column.addWidget(name_label)
         ship_column.addWidget(ship_image)
 
         remaining_label = QLabel(f"x{count}")
         remaining_label.setObjectName("shipCount")
-        remaining_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        remaining_label.setAlignment(
+            Qt.AlignmentFlag.AlignCenter,
+        )
         remaining_label.setFixedWidth(35)
 
         count_colors = {
@@ -102,9 +187,26 @@ class FleetPanel(QWidget):
             """
         )
 
+        name_label.setAttribute(
+            Qt.WidgetAttribute.WA_TransparentForMouseEvents,
+            True,
+        )
+
+        ship_image.setAttribute(
+            Qt.WidgetAttribute.WA_TransparentForMouseEvents,
+            True,
+        )
+
+        remaining_label.setAttribute(
+            Qt.WidgetAttribute.WA_TransparentForMouseEvents,
+            True,
+        )
+
         layout.addLayout(ship_column)
         layout.addStretch()
         layout.addWidget(remaining_label)
+
+        frame.clicked.connect(self._select_ship)
 
         return frame
 
@@ -115,9 +217,14 @@ class FleetPanel(QWidget):
         image_label = QLabel()
         image_label.setObjectName("shipImage")
         image_label.setFixedSize(80, 45)
-        image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        image_label.setAlignment(
+            Qt.AlignmentFlag.AlignCenter,
+        )
 
-        image_path = self.ship_images_dir / image_name
+        image_path = (
+            self.ship_images_dir
+            / image_name
+        )
 
         pixmap = QPixmap(str(image_path))
 
@@ -131,19 +238,6 @@ class FleetPanel(QWidget):
             )
 
         return image_label
-
-    def mousePressEvent(self, event) -> None:
-        child = self.childAt(event.position().toPoint())
-
-        while child is not None:
-            for name, ship_row in self.ship_rows.items():
-                if child is ship_row:
-                    self.ship_selected.emit(name)
-                    return
-
-            child = child.parentWidget()
-
-        super().mousePressEvent(event)
 
     def set_ship_remaining(
         self,
@@ -163,8 +257,24 @@ class FleetPanel(QWidget):
         if count_label is not None:
             count_label.setText(f"x{count}")
 
-    def remove_ship(self, ship_name: str) -> None:
-        self.set_ship_remaining(ship_name, 0)
+        is_available = count > 0
+
+        ship_row.setEnabled(is_available)
+
+        if not is_available:
+            ship_row.set_selected(False)
+
+            if self.selected_ship_name == ship_name:
+                self.selected_ship_name = None
+
+    def remove_ship(
+        self,
+        ship_name: str,
+    ) -> None:
+        self.set_ship_remaining(
+            ship_name,
+            0,
+        )
 
         ship_row = self.ship_rows.get(ship_name)
 
@@ -173,7 +283,10 @@ class FleetPanel(QWidget):
 
     def reset(self) -> None:
         for name, size, count, image_name in self.SHIPS:
-            self.set_ship_remaining(name, count)
+            self.set_ship_remaining(
+                name,
+                count,
+            )
 
             ship_row = self.ship_rows.get(name)
 
@@ -185,4 +298,64 @@ class FleetPanel(QWidget):
         ships: dict[str, int],
     ) -> None:
         for ship_name, count in ships.items():
-            self.set_ship_remaining(ship_name, count)
+            self.set_ship_remaining(
+                ship_name,
+                count,
+            )
+
+    def _select_ship(
+        self,
+        ship_name: str,
+    ) -> None:
+        self.selected_ship_name = ship_name
+
+        for name, ship_row in self.ship_rows.items():
+            ship_row.set_selected(
+                name == ship_name,
+            )
+
+        self.ship_selected.emit(ship_name)
+
+    def _select_orientation(
+        self,
+        orientation: str,
+    ) -> None:
+        self.selected_orientation = orientation
+
+        self._update_orientation_buttons()
+
+        self.orientation_selected.emit(
+            orientation,
+        )
+
+    def _update_orientation_buttons(
+        self,
+    ) -> None:
+        horizontal_selected = (
+            self.selected_orientation
+            == "horizontal"
+        )
+
+        self.horizontal_button.setProperty(
+            "selected",
+            horizontal_selected,
+        )
+
+        self.vertical_button.setProperty(
+            "selected",
+            not horizontal_selected,
+        )
+
+        self.horizontal_button.style().unpolish(
+            self.horizontal_button,
+        )
+        self.horizontal_button.style().polish(
+            self.horizontal_button,
+        )
+
+        self.vertical_button.style().unpolish(
+            self.vertical_button,
+        )
+        self.vertical_button.style().polish(
+            self.vertical_button,
+        )
