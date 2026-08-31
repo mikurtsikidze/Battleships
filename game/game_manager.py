@@ -3,6 +3,7 @@ from __future__ import annotations
 from enum import Enum
 
 from game.board import ShotResult
+from ai.computer_player import ComputerPlayer
 from game.player import Player
 
 
@@ -17,6 +18,7 @@ class GameManager:
     def __init__(self) -> None:
         self.player = Player("Player")
         self.computer = Player("Computer")
+        self.computer_ai = ComputerPlayer()
 
         self.state = GameState.PLACING_SHIPS
         self.current_player: Player | None = None
@@ -101,7 +103,6 @@ class GameManager:
     def reset(self) -> None:
         self.player = Player("Player")
         self.computer = Player("Computer")
+        self.computer_ai = ComputerPlayer()
 
         self.state = GameState.PLACING_SHIPS
-        self.current_player = None
-        self.winner = None

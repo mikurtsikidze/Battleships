@@ -3,6 +3,7 @@ from __future__ import annotations
 import random
 
 from game.board import Board, ShotResult
+from game.ship import Orientation, Ship
 
 
 class ComputerPlayer:
@@ -17,7 +18,12 @@ class ComputerPlayer:
 
     def choose_shot(self) -> tuple[int, int]:
         if self.target_queue:
-            return self.target_queue.pop(0)
+            shot = self.target_queue.pop(0)
+
+            if shot in self.available_shots:
+                self.available_shots.remove(shot)
+
+            return shot
 
         shot = random.choice(self.available_shots)
         self.available_shots.remove(shot)
@@ -36,6 +42,39 @@ class ComputerPlayer:
 
         elif result == ShotResult.SUNK:
             self.target_queue.clear()
+    def place_fleet(self, board: Board) -> None:
+        fleet = (
+            ("Battleship", 4, 1),
+            ("Cruiser", 3, 2),
+            ("Destroyer", 2, 3),
+            ("Patrol Boat", 1, 4),
+        )
+
+        for ship_name, ship_size, count in fleet:
+            for _ in range(count):
+                while True:
+                    orientation = random.choice(
+                        [
+                            Orientation.HORIZONTAL,
+                            Orientation.VERTICAL,
+                        ]
+                    )
+
+                    ship = Ship(
+                        name=ship_name,
+                        size=ship_size,
+                        orientation=orientation,
+                    )
+
+                    row = random.randrange(Board.SIZE)
+                    column = random.randrange(Board.SIZE)
+
+                    if board.place_ship(
+                        ship,
+                        row,
+                        column,
+                    ):
+                        break
 
     def reset(self) -> None:
         self.available_shots = [

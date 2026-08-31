@@ -252,6 +252,24 @@ class BoardWidget(QWidget):
             """
         )
 
+    def set_cell_sunk(
+        self,
+        row: int,
+        column: int,
+    ) -> None:
+        self.cells[row][column].setText("☠")
+        self.cells[row][column].setStyleSheet(
+            """
+            QPushButton {
+                background-color: #4a1f1f;
+                color: white;
+                font-size: 18px;
+                font-weight: bold;
+                border: 1px solid #8b3030;
+            }
+            """
+        )   
+
     def reset(self) -> None:
         for row in range(self.BOARD_SIZE):
             for column in range(self.BOARD_SIZE):

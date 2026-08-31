@@ -17,7 +17,11 @@ from ui.bottom_status_panel import BottomStatusPanel
 from ui.control_panel import ControlPanel
 from ui.fleet_panel import FleetPanel
 from ui.game_info_panel import GameInfoPanel
+from game.board import ShotResult
+from game.game_manager import GameManager, GameState
+from PySide6.QtCore import QTimer, Qt, Signal
 
+ 
 
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
@@ -54,6 +58,9 @@ class MainWindow(QMainWindow):
         layout.setSpacing(10)
 
         new_game_button = QPushButton("✚  NEW GAME")
+        new_game_button.clicked.connect(
+            self._new_game
+        )
         players_button = QPushButton("♟  2 PLAYERS  ▼")
 
         title = QLabel("BATTLESHIPS")
@@ -464,9 +471,15 @@ class MainWindow(QMainWindow):
         self.player_board.cell_clicked.connect(
             self._select_board_position
         )
+        self.enemy_board.cell_clicked.connect(
+            self._player_shoot
+        )
 
         self.control_panel.place_clicked.connect(
             self._place_selected_ship
+        )
+        self.control_panel.ready_clicked.connect(
+            self._ready
         )
 
         print("PLACE SIGNAL CONNECTED")
@@ -481,6 +494,32 @@ class MainWindow(QMainWindow):
     ) -> None:
         self.selected_orientation = orientation
 
+    def _ready(self) -> None:
+        required_fleet = {
+            "Battleship": 1,
+            "Cruiser": 2,
+            "Destroyer": 3,
+            "Patrol Boat": 4,
+        }
+
+        for ship_name, required_count in required_fleet.items():
+            actual_count = sum(
+                1
+                for ship in self.game_manager.player.board.ships
+                if ship.name == ship_name
+            )
+
+            if actual_count != required_count:
+                return
+
+        self.game_manager.computer_ai.place_fleet(
+            self.game_manager.computer.board
+        )
+
+        self.control_panel.set_placement_controls_enabled(False)
+        self.control_panel.set_ready_enabled(False)
+
+        self.game_manager.start_game()
     def _select_board_position(
         self,
         row: int,
@@ -583,8 +622,126 @@ class MainWindow(QMainWindow):
                 ship_name,
                 total_count - remaining_count,
             )
+    def _player_shoot(
+        self,
+        row: int,
+        column: int,
+    ) -> None:
+        if self.game_manager.state != GameState.PLAYER_TURN:
+            return
 
+        result = self.game_manager.player_shoot(
+            row,
+            column,
+        )
 
+        if result == ShotResult.ALREADY_SHOT:
+            return
+
+        if result == ShotResult.SUNK:
+            sunk_ship = self.game_manager.computer.board.get_ship_at(
+                row,
+                column,
+            )
+
+            if sunk_ship is not None:
+                for ship_row, ship_column in sunk_ship.positions:
+                    self.enemy_board.set_cell_sunk(
+                        ship_row,
+                        ship_column,
+                    )
+
+        elif result == ShotResult.HIT:
+            self.enemy_board.set_cell_hit(
+                row,
+                column,
+            )
+        else:
+            self.enemy_board.set_cell_miss(
+                row,
+                column,
+            )
+        if self.game_manager.state == GameState.COMPUTER_TURN:
+            QTimer.singleShot(
+                1000,
+                self._computer_shoot,
+            )
+
+        if self.game_manager.is_game_over:
+            self._show_game_over()  
+
+    def _new_game(self) -> None:
+        self.game_manager.reset()
+
+        self.selected_ship_name = None
+        self.selected_ship_position = None
+        self.selected_orientation = "horizontal"
+
+        self.player_board.reset()
+        self.enemy_board.reset()
+
+        self.fleet_panel.reset()
+        self.bottom_status_panel.set_status(
+            "PLACE YOUR SHIPS"
+        )
+
+        self.control_panel.set_placement_controls_enabled(True)
+        self.control_panel.set_ready_enabled(True)
+
+    def _show_game_over(self) -> None:
+        winner = self.game_manager.winner
+
+        if winner is None:
+            return
+
+        if winner == self.game_manager.player:
+            message = "YOU WIN!"
+        else:
+            message = "COMPUTER WINS!"
+
+        self.control_panel.set_placement_controls_enabled(False)
+        self.control_panel.set_ready_enabled(False)
+
+        self.bottom_status_panel.set_status(message)
+
+    def _computer_shoot(self) -> None:
+        row, column = self.game_manager.computer_ai.choose_shot()
+
+        result = self.game_manager.computer_shoot(
+            row,
+            column,
+        )
+
+        if result == ShotResult.SUNK:
+            sunk_ship = self.game_manager.player.board.get_ship_at(
+                row,
+                column,
+            )
+
+            if sunk_ship is not None:
+                for ship_row, ship_column in sunk_ship.positions:
+                    self.player_board.set_cell_sunk(
+                        ship_row,
+                        ship_column,
+                    )
+
+        elif result == ShotResult.HIT:
+            self.player_board.set_cell_hit(
+                row,
+                column,
+            )
+        else:
+            self.player_board.set_cell_miss(
+                row,
+                column,
+            )
+
+        self.game_manager.computer_ai.process_shot_result(
+            self.game_manager.player.board,
+            row,
+            column,
+            result,
+        )
     def _place_selected_ship(self) -> None:
         print("PLACE BUTTON CLICKED")
 
