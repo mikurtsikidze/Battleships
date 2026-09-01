@@ -15,6 +15,8 @@ class ComputerPlayer:
         ]
 
         self.target_queue: list[tuple[int, int]] = []
+        self.hit_positions: list[tuple[int, int]] = []
+        self.target_direction: tuple[int, int] | None = None
 
     def choose_shot(self) -> tuple[int, int]:
         if self.target_queue:
@@ -38,10 +40,36 @@ class ComputerPlayer:
         result: ShotResult,
     ) -> None:
         if result == ShotResult.HIT:
-            self._add_target_positions(board, row, column)
+            self.hit_positions.append((row, column))
+
+            if len(self.hit_positions) >= 2:
+                first_row, first_column = self.hit_positions[-2]
+                second_row, second_column = self.hit_positions[-1]
+
+                if first_row == second_row:
+                    self.target_direction = (0, 1)
+                elif first_column == second_column:
+                    self.target_direction = (1, 0)
+
+            self._add_target_positions(
+                board,
+                row,
+                column,
+            )
+
+        elif result == ShotResult.MISS:
+            if self.target_direction is not None:
+                self.target_queue = [
+                    target
+                    for target in self.target_queue
+                    if target != (row, column)
+                ]
 
         elif result == ShotResult.SUNK:
             self.target_queue.clear()
+            self.hit_positions.clear()
+            self.target_direction = None
+
     def place_fleet(self, board: Board) -> None:
         fleet = (
             ("Battleship", 4, 1),
@@ -84,6 +112,8 @@ class ComputerPlayer:
         ]
 
         self.target_queue.clear()
+        self.hit_positions.clear()
+        self.target_direction = None
 
     def _add_target_positions(
         self,
@@ -91,14 +121,28 @@ class ComputerPlayer:
         row: int,
         column: int,
     ) -> None:
-        possible_targets = [
-            (row - 1, column),
-            (row + 1, column),
-            (row, column - 1),
-            (row, column + 1),
-        ]
+        if self.target_direction is not None:
+            direction_row, direction_column = self.target_direction
 
-        for target in possible_targets:
+            targets = [
+                (
+                    row + direction_row,
+                    column + direction_column,
+                ),
+                (
+                    row - direction_row,
+                    column - direction_column,
+                ),
+            ]
+        else:
+            targets = [
+                (row - 1, column),
+                (row + 1, column),
+                (row, column - 1),
+                (row, column + 1),
+            ]
+
+        for target in targets:
             if (
                 self._is_inside_board(target)
                 and target in self.available_shots
@@ -106,7 +150,6 @@ class ComputerPlayer:
             ):
                 self.target_queue.append(target)
 
-        random.shuffle(self.target_queue)
 
     @staticmethod
     def _is_inside_board(
