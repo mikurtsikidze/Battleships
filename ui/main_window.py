@@ -1,4 +1,6 @@
-from PySide6.QtCore import Qt
+from pathlib import Path
+
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtWidgets import (
     QBoxLayout,
     QFrame,
@@ -9,28 +11,28 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from game.game_manager import GameManager
+
+from game.board import ShotResult
+from game.game_manager import GameManager, GameState
 from game.ship import Orientation, Ship
-from pathlib import Path
 from ui.board_widget import BoardWidget
 from ui.bottom_status_panel import BottomStatusPanel
 from ui.control_panel import ControlPanel
+from ui.fireworks_widget import FireworksWidget
 from ui.fleet_panel import FleetPanel
 from ui.game_info_panel import GameInfoPanel
-from game.board import ShotResult
-from game.game_manager import GameManager, GameState
-from PySide6.QtCore import QTimer, Qt, Signal
-
  
 
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
+
         self.game_manager = GameManager()
         self.selected_ship_name: str | None = None
-        self.selected_ship_position: tuple[int, int] | None = None
+        #self.selected_ship_position: tuple[int, int] | None = None
         self.selected_orientation = "horizontal"
         self.setWindowTitle("Battleships")
+        self.fireworks = FireworksWidget(self)
         self.resize(1500, 950)
         self.setMinimumSize(1200, 750)
 
@@ -48,6 +50,17 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(self._create_game_area(), 1)
         root_layout.addWidget(self._create_bottom_panel())
         self._connect_signals()
+        self.fireworks.setGeometry(
+            self.rect()
+        )
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+
+        if hasattr(self, "fireworks"):
+            self.fireworks.setGeometry(
+                self.rect()
+            )
 
     def _create_header(self) -> QWidget:
         header = QFrame()
@@ -66,6 +79,12 @@ class MainWindow(QMainWindow):
         title = QLabel("BATTLESHIPS")
         title.setObjectName("gameTitle")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.game_result_label = QLabel("")
+        self.game_result_label.setObjectName("gameResult")
+        self.game_result_label.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
 
         sound_button = QPushButton("🔊")
         music_button = QPushButton("♫")
@@ -89,7 +108,12 @@ class MainWindow(QMainWindow):
         layout.addSpacing(40)
         layout.addStretch()
 
-        layout.addWidget(title)
+        title_layout = QVBoxLayout()
+        title_layout.setSpacing(0)
+        title_layout.addWidget(title)
+        title_layout.addWidget(self.game_result_label)
+
+        layout.addLayout(title_layout)
 
         layout.addStretch()
         layout.addSpacing(40)
@@ -109,8 +133,14 @@ class MainWindow(QMainWindow):
         layout.setSpacing(10)
 
         layout.addWidget(self._create_left_panel())
-        layout.addWidget(self._create_player_board_area(), 1)
-        layout.addWidget(self._create_enemy_board_area(), 1)
+        layout.addWidget(
+            self._create_player_board_area(),
+            1,
+        )
+        layout.addWidget(
+            self._create_enemy_board_area(),
+            1,
+        )
         layout.addWidget(self._create_right_panel())
 
         return game_area
@@ -475,9 +505,9 @@ class MainWindow(QMainWindow):
             self._player_shoot
         )
 
-        self.control_panel.place_clicked.connect(
-            self._place_selected_ship
-        )
+       # self.control_panel.place_clicked.connect(
+            #self._place_selected_ship
+        #)
         self.control_panel.ready_clicked.connect(
             self._ready
         )
@@ -486,7 +516,7 @@ class MainWindow(QMainWindow):
 
     def _select_ship(self, ship_name: str) -> None:
         self.selected_ship_name = ship_name
-        self.selected_ship_position = None
+       # self.selected_ship_position = None
 
     def _select_orientation(
         self,
@@ -666,15 +696,19 @@ class MainWindow(QMainWindow):
                 1000,
                 self._computer_shoot,
             )
+            self.bottom_status_panel.set_status(
+                "COMPUTER THINKING..."
+            )
 
         if self.game_manager.is_game_over:
             self._show_game_over()  
 
     def _new_game(self) -> None:
+        self.fireworks.stop()
         self.game_manager.reset()
 
         self.selected_ship_name = None
-        self.selected_ship_position = None
+        #self.selected_ship_position = None
         self.selected_orientation = "horizontal"
 
         self.player_board.reset()
@@ -696,6 +730,7 @@ class MainWindow(QMainWindow):
 
         if winner == self.game_manager.player:
             message = "YOU WIN!"
+            self.fireworks.start()
         else:
             message = "COMPUTER WINS!"
 
@@ -742,6 +777,11 @@ class MainWindow(QMainWindow):
             column,
             result,
         )
+        if not self.game_manager.is_game_over:
+            self.bottom_status_panel.set_status(
+                "YOUR TURN"
+            )
+"""
     def _place_selected_ship(self) -> None:
         print("PLACE BUTTON CLICKED")
 
@@ -792,3 +832,4 @@ class MainWindow(QMainWindow):
 
         self.selected_ship_name = None
         self.selected_ship_position = None
+"""
