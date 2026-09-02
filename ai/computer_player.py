@@ -59,13 +59,32 @@ class ComputerPlayer:
 
         elif result == ShotResult.MISS:
             if self.target_direction is not None:
-                self.target_queue = [
-                    target
-                    for target in self.target_queue
-                    if target != (row, column)
-                ]
+                self.target_queue.clear()
 
         elif result == ShotResult.SUNK:
+            sunk_ship = board.get_ship_at(
+                row,
+                column,
+            )
+
+            if sunk_ship is not None:
+                for ship_row, ship_column in sunk_ship.positions:
+                    for neighbor_row in range(
+                        ship_row - 1,
+                        ship_row + 2,
+                    ):
+                        for neighbor_column in range(
+                            ship_column - 1,
+                            ship_column + 2,
+                        ):
+                            position = (
+                                neighbor_row,
+                                neighbor_column,
+                            )
+
+                            if position in self.available_shots:
+                                self.available_shots.remove(position)
+
             self.target_queue.clear()
             self.hit_positions.clear()
             self.target_direction = None

@@ -106,3 +106,5 @@ class GameManager:
         self.computer_ai = ComputerPlayer()
 
         self.state = GameState.PLACING_SHIPS
+        self.current_player = None
+        self.winner = None
